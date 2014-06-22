@@ -1,0 +1,56 @@
+---
+output: pdf_document
+---
+Coursera class on Practical Machine Learning: classification of physical exercises
+========================================================
+
+The goal of the project is to use data on 6 participants who were were asked to perform barbell lifts correctly and incorrectly in 5 different ways. Measures from accelerometers on the belt, forearm, arm and dumbell of the participants are used to train a random forest model, in order to predict whether the lifts were performed correctly or incorrectly (4 distinct incorrect ways are used). The model achieved a high accuracy rate in and out of samples and correctly predicted the 20 instances of the test set. 
+
+### Loading of the data
+```{r }
+setInternet2(TRUE)
+library(plyr); library(ggplot2);library(caret);library(randomForest)
+setwd("C:/Users/USer/Documents/GitHub/CourseraPracticalMachineLearning/")
+if (!file.exists("train.csv")) { 
+      train.path<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+      download.file(train.path,"train.csv")
+      }
+train <- read.csv("train.csv",as.is=TRUE)
+if (!file.exists("test.csv")) { 
+      test.path<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+      download.file(test.path,"test.csv")
+      }
+test <- read.csv("test.csv",as.is=TRUE)
+```
+The data for this project come from (http://groupware.les.inf.puc-rio.br/har).
+The testing data is already identified and segregated from the training data that we will use to select the model.  
+
+### Preprocessing of the data
+Let us remove the columns where over 50% of the instances are empty or missing and store the new data under the dataframe training. Then let us remove the first 7 columns which do not concern measurements per se but instead provide information relative to the identity of the person exercising and the conditions under which the measurements were made. Also classe is converted into a factor. 
+```{r}
+training<-train[,colnames(train)[sapply(1:ncol(train),function(.xyz) sum(is.na(train[,.xyz]))+sum(train[,.xyz]=="",na.rm=TRUE))<nrow(train)/2]]
+training<-training[,-c(1:7)];training$classe<-factor(training$classe)
+print(table(training$classe))
+```
+We are left with  `r ncol(training)-1` predictors for the variable Classe and `r nrow(training)` instances. The 5 levels of the variable Classe are:     
+**Class A**: exactly according to the specification    
+**Class B**: throwing the elbows to the front    
+**Class C**: lifting the dumbbell only halfway   
+**Class D**: lowering the dumbbell only halfway   
+**Class E**: throwing the hips to the front   
+
+### fitting of a random tree model
+Let us split the training data in two same-size parts: the training set and the cross validation set.
+``` {r}
+inTrain = createDataPartition(training$classe, p = 1/2)[[1]]
+training.t = training[ inTrain,];training.cv = training[-inTrain,]
+modelFit<-train(classe~.,data=training.t, method="rf",allowParallel=T, trControl = trainControl(method = "cv", number = 4))
+print(modelFit$finalModel)
+ConfusionMatrix<-confusionMatrix(training.cv$classe,predict(modelFit,training.cv))
+print(ConfusionMatrix)
+```
+The Out Of Bags estimate of error rate on the training set is 1.03%.   
+The accuracy rate on the cross validation set is `r ConfusionMatrix$overall[1]`
+The model is performing quite well in and out of sample, which leads us to keep this model to predict the classe variable on the test set.
+The model achieved a perfect classification on the 20 instances of the test set.
+
